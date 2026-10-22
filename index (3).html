@@ -1,0 +1,1087 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101426">
+<title>Alina</title>
+<meta name="description" content="Alina: підбір книг за жанром і смаком через Google Books">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: sticky header, taste-search hero, genre chips, cover grid, bottom-sheet on phones.
+   Color: cool paper + deep teal accent + gold for ratings. Type: Unbounded (display) + Onest (text). */
+:root {
+  --bg: #F0F2F7;
+  --surface: #FFFFFF;
+  --ink: #14183A;
+  --muted: #5A607A;
+  --line: #DADEEA;
+  --accent: #0F7B6C;
+  --accent-ink: #FFFFFF;
+  --gold: #E0A100;
+  --heart: #E5484D;
+  --shadow: 0 10px 30px rgba(20, 24, 58, .10);
+  --intro-bg: #101426;
+  --intro-cover: #0F7B6C;
+  --intro-cover-dark: #0A5A4E;
+  --intro-gold: #FFC83D;
+  --intro-paper: #F5F2E8;
+  --intro-text: #EDEFF8;
+  --gl: max(16px, env(safe-area-inset-left, 0px));
+  --gr: max(16px, env(safe-area-inset-right, 0px));
+  --font-display: "Unbounded", "Onest", system-ui, sans-serif;
+  --font-body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C0F1C; --surface: #151A2E; --ink: #EEF0FA; --muted: #98A0BC; --line: #262C47;
+    --accent: #46D2B6; --accent-ink: #05241E; --gold: #FFC83D; --heart: #FF6B70; --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C0F1C; --surface: #151A2E; --ink: #EEF0FA; --muted: #98A0BC; --line: #262C47;
+  --accent: #46D2B6; --accent-ink: #05241E; --gold: #FFC83D; --heart: #FF6B70; --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+html.lock, html:has(dialog[open]) { overflow: hidden; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-left: var(--gl);
+  padding-right: var(--gr);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  background: var(--bg); z-index: 20;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button, a, .chip { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1120px; margin: 0 auto; }
+
+/* ---------- Intro: 3D book ---------- */
+.intro {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: var(--intro-bg); color: var(--intro-text); cursor: pointer; overflow: hidden;
+  transition: opacity .7s ease, visibility .7s;
+}
+.intro.done { opacity: 0; visibility: hidden; }
+.intro-inner { display: grid; justify-items: center; gap: 34px; }
+.stage { position: relative; width: 300px; height: 230px; perspective: 1300px; }
+.tilt { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(16deg) rotateY(-12deg); }
+.shift {
+  position: absolute; left: 50%; top: 10px; width: 150px; height: 210px;
+  transform-style: preserve-3d;
+  animation: center 1.9s cubic-bezier(.5, 0, .3, 1) .45s both;
+}
+@keyframes center { from { transform: translateX(-75px); } to { transform: translateX(0); } }
+.base, .board { position: absolute; border-radius: 3px 8px 8px 3px; }
+.base { inset: 0; background: var(--intro-paper); }
+.board { inset: -5px -6px -5px -2px; background: var(--intro-cover-dark); transform: translateZ(-2px); }
+.page {
+  position: absolute; inset: 0; transform-origin: left center; transform-style: preserve-3d;
+  transform: translateZ(calc((var(--n) - var(--i)) * .8px)) rotateY(0deg);
+  animation: flip .26s cubic-bezier(.45, .05, .4, 1) calc(.5s + var(--i) * .11s) forwards;
+}
+@keyframes flip {
+  from { transform: translateZ(calc((var(--n) - var(--i)) * .8px)) rotateY(0deg); }
+  to { transform: translateZ(calc(var(--i) * .8px)) rotateY(-180deg); }
+}
+.face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 3px 8px 8px 3px; }
+.face.back { transform: rotateY(180deg); border-radius: 8px 3px 3px 8px; }
+.paper {
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 13px, rgba(20, 24, 58, .14) 13px 14px) 18px 26px / calc(100% - 36px) calc(100% - 52px) no-repeat,
+    var(--intro-paper);
+}
+.bk-cover .front {
+  background: var(--intro-cover); display: grid; place-items: center; align-content: center; gap: 10px;
+  box-shadow: inset 6px 0 0 rgba(0, 0, 0, .18);
+}
+.bk-cover .front::before { content: ""; width: 38px; height: 2px; background: var(--intro-gold); }
+.bk-cover .front span { font-family: var(--font-display); font-weight: 700; font-size: 26px; color: var(--intro-gold); letter-spacing: .02em; }
+.bk-cover .back { background: var(--intro-cover-dark); }
+.intro-title { text-align: center; opacity: 0; animation: rise .7s ease 2s forwards; }
+.intro-title b { display: block; font-family: var(--font-display); font-weight: 700; font-size: 34px; letter-spacing: .04em; }
+.intro-title span { color: #A9B0CC; font-size: 15px; }
+.skip { position: absolute; bottom: max(24px, env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center; color: #7F87A6; font-size: 13px; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (min-width: 700px) { .stage { scale: 1.35; margin-block: 36px; } }
+
+/* ---------- Header ---------- */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px; }
+.logo { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .02em; text-decoration: none; color: var(--ink); }
+.logo svg { width: 30px; height: 30px; }
+.actions { display: flex; gap: 8px; }
+.icon-btn {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 42px; min-width: 42px; justify-content: center;
+  padding: 0 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+}
+.icon-btn svg { width: 20px; height: 20px; flex: none; }
+.icon-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.count { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.moon { display: none; }
+:root[data-theme="dark"] .sun { display: none; }
+:root[data-theme="dark"] .moon { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sun { display: none; }
+  :root:not([data-theme="light"]) .moon { display: block; }
+}
+
+/* ---------- Hero + search ---------- */
+.hero { padding-block: 20px 8px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.7rem, 6vw, 3rem); line-height: 1.12; margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+.lead { margin: 0 0 20px; color: var(--muted); max-width: 54ch; }
+.search { display: flex; gap: 8px; max-width: 680px; }
+.search input {
+  flex: 1; min-width: 0; height: 52px; padding: 0 18px; border-radius: 16px; border: 1px solid var(--line);
+  background: var(--surface); font-size: 16px;
+}
+.search input::placeholder { color: var(--muted); }
+.go {
+  display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px; border: 0; border-radius: 16px;
+  background: var(--accent); color: var(--accent-ink); font-weight: 600;
+}
+.go svg { width: 20px; height: 20px; }
+@media (max-width: 480px) { .go span { display: none; } .go { padding: 0 16px; } }
+.try { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 12px; font-size: 14px; color: var(--muted); }
+.try button { border: 0; background: none; padding: 2px 0; color: var(--accent); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; text-align: left; }
+.understood { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 14px; font-size: 14px; color: var(--muted); }
+.understood[hidden] { display: none; }
+
+/* ---------- Genres + filters ---------- */
+.chips { display: flex; gap: 8px; margin: 20px calc(-1 * var(--gr)) 0 calc(-1 * var(--gl)); padding: 4px var(--gr) 4px var(--gl); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; scroll-snap-align: start; height: 40px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); font-weight: 500; white-space: nowrap;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+@media (min-width: 760px) { .chips { flex-wrap: wrap; overflow: visible; margin: 20px 0 0; padding: 0; } }
+.filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 16px; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field select {
+  height: 42px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); min-width: 150px;
+}
+.filters .btn[hidden] { display: none; }
+
+/* ---------- Results ---------- */
+.results-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 28px 0 14px; }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 1.15rem; margin: 0; }
+.meta { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px 14px; }
+.card { position: relative; min-width: 0; }
+.open { display: grid; gap: 10px; width: 100%; padding: 0; border: 0; background: none; text-align: left; align-content: start; }
+.cover {
+  position: relative; aspect-ratio: 2 / 3; border-radius: 6px 12px 12px 6px; overflow: hidden; background: var(--line);
+  box-shadow: var(--shadow); transition: transform .25s ease;
+}
+.cover::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 6px; background: linear-gradient(to right, rgba(0, 0, 0, .28), transparent); pointer-events: none; }
+.open:hover .cover, .open:focus-visible .cover { transform: translateY(-4px) rotate(-1deg); }
+.cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ph { width: 100%; height: 100%; display: grid; align-content: center; justify-items: center; gap: 10px; padding: 14px; text-align: center; color: #fff; font-family: var(--font-display); font-weight: 500; font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }
+.ph::before { content: ""; width: 26px; height: 2px; background: rgba(255, 255, 255, .7); }
+.t { font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.a { color: var(--muted); font-size: 14px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-top: -6px; }
+.sub { display: flex; gap: 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.star { color: var(--gold); }
+.fav {
+  position: absolute; top: 8px; right: 8px; width: 38px; height: 38px; display: grid; place-items: center;
+  border-radius: 50%; border: 0; background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+}
+.fav svg { width: 20px; height: 20px; fill: none; stroke: var(--ink); stroke-width: 2; }
+.fav[aria-pressed="true"] svg { fill: var(--heart); stroke: var(--heart); }
+.skel .cover { background: linear-gradient(100deg, var(--line) 30%, color-mix(in srgb, var(--line) 50%, var(--surface)) 50%, var(--line) 70%) 0 0 / 200% 100%; animation: shimmer 1.3s linear infinite; box-shadow: none; }
+.skel .bar { height: 12px; border-radius: 6px; background: var(--line); margin-top: 10px; }
+.skel .bar.s { width: 60%; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.state { text-align: center; padding: 48px 16px; color: var(--muted); }
+.state b { display: block; font-family: var(--font-display); font-weight: 500; color: var(--ink); margin-bottom: 6px; font-size: 1.05rem; }
+.more { display: block; margin: 32px auto 0; height: 48px; padding: 0 28px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; }
+.more[hidden] { display: none; }
+.more:disabled { opacity: .6; cursor: progress; }
+footer { margin-top: 56px; padding-block: 24px 32px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+.notice { margin: 20px 0 0; padding: 12px 16px; border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: 12px; background: var(--surface); font-size: 14px; color: var(--muted); }
+.notice[hidden] { display: none; }
+.state .btn { margin-top: 16px; }
+.keybox { margin-top: 16px; font-size: 14px; }
+.keybox summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+.keybox p { margin: 8px 0; max-width: 60ch; }
+.keybox form { display: flex; flex-wrap: wrap; gap: 8px; }
+.keybox input { flex: 1 1 220px; min-width: 0; height: 42px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.tag { padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.understood .tag { color: var(--ink); }
+
+/* ---------- Book sheet ---------- */
+dialog.sheet {
+  width: 100%; max-width: 720px; max-height: 92dvh; margin: auto auto 0; padding: 0; border: 0; border-radius: 24px 24px 0 0;
+  background: var(--surface); color: var(--ink); overflow: hidden;
+}
+dialog.sheet::backdrop { background: rgba(8, 10, 22, .6); backdrop-filter: blur(3px); }
+@media (min-width: 760px) { dialog.sheet { margin: auto; border-radius: 24px; } }
+.sheet-body {
+  position: relative; display: grid; gap: 20px; max-height: 92dvh; overflow-y: auto;
+  padding: 24px max(20px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  grid-template-columns: 120px minmax(0, 1fr); align-items: start;
+}
+.sheet h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; line-height: 1.25; margin: 0 0 6px; padding-right: 36px; text-wrap: balance; overflow-wrap: anywhere; }
+.sheet .by { margin: 0 0 12px; color: var(--muted); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tags .tag { background: var(--bg); border-color: transparent; }
+.desc { grid-column: 1 / -1; margin: 0; white-space: pre-line; max-width: 65ch; overflow-wrap: anywhere; }
+.btns { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 14px; font-weight: 600; text-decoration: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn[aria-pressed="true"] { border-color: var(--heart); color: var(--heart); }
+.filters .btn { min-height: 42px; }
+.close { position: absolute; top: 12px; right: max(12px, env(safe-area-inset-right, 0px)); width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--bg); display: grid; place-items: center; z-index: 1; }
+.close svg { width: 18px; height: 18px; stroke: var(--ink); stroke-width: 2; fill: none; }
+@media (min-width: 560px) { .sheet-body { grid-template-columns: 170px minmax(0, 1fr); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skel .cover { animation: none; }
+  .open:hover .cover { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="intro" id="intro" role="presentation" aria-label="Alina">
+  <div class="intro-inner">
+    <div class="stage" aria-hidden="true">
+      <div class="tilt">
+        <div class="shift" id="book">
+          <div class="board"></div>
+          <div class="base"></div>
+        </div>
+      </div>
+    </div>
+    <div class="intro-title"><b>Alina</b><span>Книги під твій смак</span></div>
+  </div>
+  <div class="skip">Торкнись, щоб пропустити</div>
+</div>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#" aria-label="Alina, на головну">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 7c4-2 9-2 13 1v18c-4-3-9-3-13-1z" fill="var(--accent)"/><path d="M29 7c-4-2-9-2-13 1v18c4-3 9-3 13-1z" fill="var(--gold)"/></svg>
+      Alina
+    </a>
+    <div class="actions">
+      <button class="icon-btn" id="savedBtn" type="button" aria-pressed="false" aria-label="Збережені книги">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20s-7-4.4-9-9.2C1.8 7.6 3.7 4.5 7 4.5c2 0 3.4 1 5 3 1.6-2 3-3 5-3 3.3 0 5.2 3.1 4 6.3-2 4.8-9 9.2-9 9.2z"/></svg>
+        <span class="count" id="savedCount">0</span>
+      </button>
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="Змінити тему">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <h1>Розкажи, що хочеш почитати</h1>
+    <p class="lead">Напиши жанр, настрій чи тему. Alina сама розбере запит і підбере книги з Google Books. Автора чи назву теж можна.</p>
+    <form class="search" id="searchForm" role="search">
+      <input id="q" type="search" placeholder="Наприклад: темне фентезі про драконів" autocomplete="off" aria-label="Жанр, тема або назва книги">
+      <button class="go" type="submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <span>Підібрати</span>
+      </button>
+    </form>
+    <div class="try" id="try"><span>Спробуй:</span></div>
+    <div class="understood" id="understood" hidden></div>
+    <div class="chips" id="chips" role="group" aria-label="Жанри"></div>
+    <div class="filters">
+      <label class="field" for="lang">Мова книги
+        <select id="lang">
+          <option value="">Будь-яка</option>
+          <option value="uk">Українська</option>
+          <option value="en">English</option>
+          <option value="pl">Polski</option>
+          <option value="de">Deutsch</option>
+        </select>
+      </label>
+      <label class="field" for="order">Сортування
+        <select id="order">
+          <option value="relevance">За релевантністю</option>
+          <option value="newest">Спочатку нові</option>
+        </select>
+      </label>
+      <button class="btn" id="forMe" type="button" hidden>Схожі на збережені</button>
+    </div>
+  </section>
+
+  <section aria-live="polite">
+    <p class="notice" id="notice" hidden></p>
+    <div class="results-head">
+      <h2 id="resTitle">Книги</h2>
+      <span class="meta" id="resMeta"></span>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div id="state"></div>
+    <button class="more" id="more" type="button" hidden>Показати ще</button>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>Alina · дані та обкладинки з Google Books, запасне джерело Open Library</div>
+    <details class="keybox" id="keybox">
+      <summary>Налаштування пошуку</summary>
+      <p>Якщо Google Books відповідає помилкою або не відповідає, Alina автоматично бере книги з Open Library. Свій безкоштовний ключ Google Books API можна додати тут, тоді обмежень менше.</p>
+      <form id="keyForm">
+        <input id="keyInput" type="text" placeholder="Ключ Google Books API" autocomplete="off" aria-label="Ключ Google Books API">
+        <button class="btn" type="submit">Зберегти</button>
+      </form>
+    </details>
+  </div>
+</footer>
+
+<dialog class="sheet" id="sheet" aria-label="Інформація про книгу">
+  <div class="sheet-body" id="sheetBody"></div>
+</dialog>
+
+<script>
+(function () {
+  'use strict';
+
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- Intro: fast page-flipping 3D book ---------- */
+  var intro = $('intro');
+  var book = $('book');
+  var N = 16;
+  for (var i = 0; i < N; i++) {
+    var p = document.createElement('div');
+    p.className = 'page' + (i === 0 ? ' bk-cover' : '');
+    p.style.setProperty('--i', i);
+    p.style.setProperty('--n', N);
+    p.innerHTML = i === 0
+      ? '<div class="face front"><span>Alina</span></div><div class="face back"></div>'
+      : '<div class="face front paper"></div><div class="face back paper"></div>';
+    book.appendChild(p);
+  }
+  document.documentElement.classList.add('lock');
+  var closed = false;
+  function closeIntro() {
+    if (closed) return;
+    closed = true;
+    intro.classList.add('done');
+    document.documentElement.classList.remove('lock');
+    setTimeout(function () { if (intro.parentNode) intro.parentNode.removeChild(intro); }, 900);
+  }
+  intro.addEventListener('click', closeIntro);
+  document.addEventListener('keydown', function (e) { if (!closed && (e.key === 'Escape' || e.key === 'Enter')) closeIntro(); });
+  setTimeout(closeIntro, reduce ? 300 : 3400);
+
+  /* ---------- Storage helpers ---------- */
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  /* ---------- Theme ---------- */
+  var root = document.documentElement;
+  var savedTheme = lsGet('alina:theme');
+  if (savedTheme === 'dark' || savedTheme === 'light') root.setAttribute('data-theme', savedTheme);
+  $('themeBtn').addEventListener('click', function () {
+    var cur = root.getAttribute('data-theme');
+    if (!cur) cur = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    lsSet('alina:theme', next);
+  });
+
+  /* ---------- Genres and taste dictionary ---------- */
+  // k: word beginnings that mean this genre (Ukrainian, Russian, English)
+  var GENRES = [
+    { name: 'Фантастика', q: 'science fiction', k: ['фантаст', 'sci-fi', 'scifi'] },
+    { name: 'Фентезі', q: 'fantasy', k: ['фентез', 'фэнтез', 'fantas'] },
+    { name: 'Детектив', q: 'detective', k: ['детектив', 'розслід', 'mystery'] },
+    { name: 'Трилер', q: 'thriller', k: ['трилер', 'триллер', 'thriller', 'саспенс'] },
+    { name: 'Романтика', q: 'romance', k: ['романт', 'кохан', 'любов', 'romance'] },
+    { name: 'Жахи', q: 'horror', k: ['жах', 'страшн', 'хорор', 'лякаюч', 'horror'] },
+    { name: 'Історія', q: 'history', k: ['історі', 'історич', 'history'] },
+    { name: 'Біографії', q: 'biography', k: ['біограф', 'автобіограф', 'мемуар', 'biograph', 'memoir'] },
+    { name: 'Саморозвиток', q: 'self-help', k: ['саморозв', 'мотивац', 'продуктивн', 'звичк', 'self-help', 'selfhelp'] },
+    { name: 'Психологія', q: 'psychology', k: ['психолог', 'psycholog'] },
+    { name: 'Філософія', q: 'philosophy', k: ['філософ', 'philosoph'] },
+    { name: 'Бізнес', q: 'business', k: ['бізнес', 'підприємн', 'менеджмент', 'business'] },
+    { name: 'Класика', q: 'classics', k: ['класик', 'класичн', 'classic'] },
+    { name: 'Поезія', q: 'poetry', k: ['поезі', 'вірш', 'поет', 'poetry', 'poem'] },
+    { name: 'Підліткова', q: 'young adult fiction', k: ['підлітк', 'teen'] },
+    { name: 'Комікси', q: 'comics', k: ['комікс', 'манга', 'мангу', 'манґ', 'manga', 'comic', 'graphic'] },
+    { name: 'Гумор', q: 'humor', k: ['гумор', 'смішн', 'весел', 'комед', 'сатир', 'humor', 'humour', 'funny', 'comedy'] },
+    { name: 'Пригоди', q: 'adventure', k: ['пригод', 'adventure'] },
+    { name: 'Антиутопія', q: 'dystopian', k: ['антиутоп', 'дистопі', 'dystopi'] },
+    { name: 'Міфологія', q: 'mythology', k: ['міфолог', 'міф', 'легенд', 'myth'] },
+    { name: 'Дитячі', q: 'juvenile fiction', k: ['дитяч', 'казк', 'kids', 'children'] }
+  ];
+
+  // Topics: word beginning -> English search word, optional genre it implies
+  var TOPICS = [
+    { k: ['космос', 'космічн', 'зоряні', 'галакт', 'space', 'galax'], en: 'space', genre: 'Фантастика' },
+    { k: ['кіберпанк', 'cyberpunk'], en: 'cyberpunk', genre: 'Фантастика' },
+    { k: ['робот', 'robot'], en: 'robots', genre: 'Фантастика' },
+    { k: ['постапок', 'апокаліпс', 'apocalyp'], en: 'post-apocalyptic', genre: 'Фантастика' },
+    { k: ['інопланет', 'прибульц', 'alien'], en: 'aliens', genre: 'Фантастика' },
+    { k: ['дракон', 'dragon'], en: 'dragons', genre: 'Фентезі' },
+    { k: ['магі', 'маг', 'чарівн', 'чаклун', 'відьм', 'magic', 'witch', 'wizard'], en: 'magic', genre: 'Фентезі' },
+    { k: ['ельф', 'гном', 'elf', 'elves'], en: 'elves', genre: 'Фентезі' },
+    { k: ['вампір', 'vampire'], en: 'vampires' },
+    { k: ['вбивств', 'вбивц', 'murder'], en: 'murder', genre: 'Детектив' },
+    { k: ['шпигун', 'spy'], en: 'spy', genre: 'Трилер' },
+    { k: ['мафі', 'mafia'], en: 'mafia', genre: 'Трилер' },
+    { k: ['війн', 'war'], en: 'war', genre: 'Історія' },
+    { k: ['середньовіч', 'medieval'], en: 'medieval', genre: 'Історія' },
+    { k: ['виживан', 'survival'], en: 'survival' },
+    { k: ['подорож', 'travel'], en: 'travel' },
+    { k: ['дружб', 'friendship'], en: 'friendship' },
+    { k: ['школ', 'school'], en: 'school' },
+    { k: ['тварин', 'animal'], en: 'animals' },
+    { k: ['сім’', 'сім\'', 'родин', 'family'], en: 'family' },
+    { k: ['темн', 'похмур', 'dark'], en: 'dark' },
+    { k: ['епічн', 'epic'], en: 'epic' }
+  ];
+  var PHRASES = [
+    { k: 'подорож у часі', en: 'time travel', genre: 'Фантастика' },
+    { k: 'подорожі у часі', en: 'time travel', genre: 'Фантастика' },
+    { k: 'подорожі в часі', en: 'time travel', genre: 'Фантастика' },
+    { k: 'машина часу', en: 'time travel', genre: 'Фантастика' },
+    { k: 'time travel', en: 'time travel', genre: 'Фантастика' },
+    { k: 'штучний інтелект', en: 'artificial intelligence', genre: 'Фантастика' },
+    { k: 'science fiction', en: '', genre: 'Фантастика' },
+    { k: 'young adult', en: '', genre: 'Підліткова' },
+    { k: 'self help', en: '', genre: 'Саморозвиток' },
+    { k: 'графічний роман', en: '', genre: 'Комікси' }
+  ];
+  var STOP = {};
+  ('про і та й з із на для або що щоб як типу трохи дуже у в до це цей чи ' +
+   'хочу щось мені люблю подобається подобаються підбери порадь порадьте знайди покажи шукаю потрібна потрібно бажано ' +
+   'книга книги книгу книг книжка книжки книжку почитати читати прочитати жанр жанру жанри ' +
+   'a the about book books with and want some something read me for of in to')
+    .split(' ').forEach(function (w) { STOP[w] = true; });
+
+  var EXAMPLES = ['темне фентезі про драконів', 'космос і виживання', 'смішний детектив', 'кіберпанк'];
+
+  function genreByName(name) {
+    for (var i = 0; i < GENRES.length; i++) if (GENRES[i].name === name) return GENRES[i];
+    return null;
+  }
+
+  /* Turns free text into genres + keywords. */
+  function planFromText(raw, lang) {
+    var t = ' ' + raw.toLowerCase().replace(/[.,;:!?()«»"“”]/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+    var genres = [], kwEn = [], kwUa = [], left = [];
+    function addG(name) { var g = genreByName(name); if (g && genres.indexOf(g) < 0) genres.push(g); }
+    PHRASES.forEach(function (p) {
+      var needle = ' ' + p.k + ' ';
+      if (t.indexOf(needle) > -1) {
+        t = t.replace(needle, ' ');
+        if (p.en) { kwEn.push(p.en); kwUa.push(p.k); }
+        if (p.genre) addG(p.genre);
+      }
+    });
+    t.trim().split(' ').filter(Boolean).forEach(function (w) {
+      var hit = false;
+      GENRES.forEach(function (g) {
+        if (g.k.some(function (s) { return w.indexOf(s) === 0; })) { if (genres.indexOf(g) < 0) genres.push(g); hit = true; }
+      });
+      if (!hit) {
+        TOPICS.some(function (tp) {
+          if (tp.k.some(function (s) { return w.indexOf(s) === 0; })) {
+            if (kwEn.indexOf(tp.en) < 0) { kwEn.push(tp.en); kwUa.push(w); }
+            if (tp.genre) addG(tp.genre);
+            hit = true;
+            return true;
+          }
+          return false;
+        });
+      }
+      if (!hit && !STOP[w]) left.push(w);
+    });
+    // Nothing recognised as a genre and unknown words remain: treat as a title or author
+    if (!genres.length && (!kwEn.length || left.length)) return { genres: [], text: raw, label: raw };
+    var text = '', label = '';
+    if (kwEn.length) {
+      text = (lang === 'uk' ? kwUa : kwEn).slice(0, 3).join(' ');
+      label = kwUa.slice(0, 3).join(', ');
+    } else if (left.length) {
+      text = left.slice(0, 3).join(' ');
+      label = text;
+    }
+    return { genres: genres.slice(0, 3), text: text, label: label };
+  }
+
+  /* ---------- State ---------- */
+  var state = {
+    genres: [GENRES[1]], text: '', label: '', raw: '',
+    lang: '', order: 'relevance', start: 0, more: false, items: [],
+    loading: false, view: 'search', mode: 'search', token: 0,
+    fromText: false, relaxed: false, relaxedTried: false,
+    forMeQueries: [], forMeNames: [],
+    source: null, googleErr: '', apiKey: (lsGet('alina:key') || '').trim()
+  };
+  var saved = {};
+  try { saved = JSON.parse(lsGet('alina:saved') || '{}') || {}; } catch (e) { saved = {}; }
+  var cache = {};
+
+  var grid = $('grid'), stateBox = $('state'), moreBtn = $('more'), chips = $('chips');
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function https(u) { return u ? String(u).replace(/^http:/, 'https:').replace(/&edge=curl/, '') : ''; }
+  function hue(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; }
+
+  function normalize(it) {
+    var v = it.volumeInfo || {};
+    var img = v.imageLinks || {};
+    return {
+      src: 'g',
+      id: it.id,
+      title: v.title || 'Без назви',
+      authors: (v.authors || []).join(', '),
+      thumb: https(img.thumbnail || img.smallThumbnail || ''),
+      year: (v.publishedDate || '').slice(0, 4),
+      rating: v.averageRating || 0,
+      pages: v.pageCount || 0,
+      publisher: v.publisher || '',
+      lang: v.language || '',
+      desc: v.description || '',
+      cats: v.categories || [],
+      info: https(v.infoLink || ''),
+      preview: v.previewLink && it.accessInfo && it.accessInfo.viewability !== 'NO_PAGES' ? https(v.previewLink) : ''
+    };
+  }
+
+  function normalizeOL(d) {
+    var rating = d.ratings_average ? Math.round(d.ratings_average * 10) / 10 : 0;
+    return {
+      src: 'ol',
+      id: 'ol' + d.key,
+      title: d.title || 'Без назви',
+      authors: (d.author_name || []).slice(0, 3).join(', '),
+      thumb: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-M.jpg' : '',
+      year: d.first_publish_year ? String(d.first_publish_year) : '',
+      rating: rating,
+      pages: d.number_of_pages_median || 0,
+      publisher: '',
+      lang: '',
+      desc: '',
+      cats: (d.subject || []).slice(0, 3),
+      info: 'https://openlibrary.org' + d.key,
+      preview: ''
+    };
+  }
+
+  /* ---------- Genre chips ---------- */
+  function buildChips() {
+    chips.textContent = '';
+    var all = el('button', 'chip', 'Усі жанри');
+    all.type = 'button';
+    all.setAttribute('aria-pressed', String(!state.genres.length && state.mode !== 'forme'));
+    all.addEventListener('click', function () {
+      state.genres = []; state.fromText = false; state.text = ''; state.label = ''; state.raw = '';
+      buildChips(); search();
+    });
+    chips.appendChild(all);
+    GENRES.forEach(function (g) {
+      var b = el('button', 'chip', g.name);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(state.genres.indexOf(g) > -1));
+      b.addEventListener('click', function () {
+        var i = state.genres.indexOf(g);
+        if (i > -1) state.genres.splice(i, 1);
+        else { state.genres.push(g); if (state.genres.length > 3) state.genres.shift(); }
+        state.fromText = !!state.text;
+        buildChips(); search();
+      });
+      chips.appendChild(b);
+    });
+  }
+
+  function buildExamples() {
+    var box = $('try');
+    EXAMPLES.forEach(function (ex) {
+      var b = el('button', null, ex);
+      b.type = 'button';
+      b.addEventListener('click', function () { $('q').value = ex; submitText(ex); });
+      box.appendChild(b);
+    });
+  }
+
+  /* ---------- Rendering ---------- */
+  function coverNode(b) {
+    var c = el('div', 'cover');
+    function placeholder() {
+      c.textContent = '';
+      var ph = el('div', 'ph', b.title);
+      ph.style.background = 'hsl(' + hue(b.title) + ' 42% 30%)';
+      c.appendChild(ph);
+    }
+    if (b.thumb) {
+      var img = new Image();
+      img.alt = '';
+      img.loading = 'lazy';
+      img.addEventListener('error', placeholder);
+      img.src = b.thumb;
+      c.appendChild(img);
+    } else placeholder();
+    return c;
+  }
+
+  function heartIcon() {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    var path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M12 20s-7-4.4-9-9.2C1.8 7.6 3.7 4.5 7 4.5c2 0 3.4 1 5 3 1.6-2 3-3 5-3 3.3 0 5.2 3.1 4 6.3-2 4.8-9 9.2-9 9.2z');
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function card(b) {
+    cache[b.id] = b;
+    var w = el('article', 'card');
+    var open = el('button', 'open');
+    open.type = 'button';
+    open.appendChild(coverNode(b));
+    open.appendChild(el('div', 't', b.title));
+    if (b.authors) open.appendChild(el('div', 'a', b.authors));
+    var sub = el('div', 'sub');
+    if (b.rating) {
+      var r = el('span');
+      r.appendChild(el('span', 'star', '★'));
+      r.appendChild(document.createTextNode(' ' + b.rating));
+      sub.appendChild(r);
+    }
+    if (b.year) sub.appendChild(el('span', null, b.year));
+    if (sub.childNodes.length) open.appendChild(sub);
+    open.addEventListener('click', function () { openSheet(b.id); });
+    var fav = el('button', 'fav');
+    fav.type = 'button';
+    fav.setAttribute('aria-label', 'Зберегти «' + b.title + '»');
+    fav.setAttribute('aria-pressed', String(!!saved[b.id]));
+    fav.appendChild(heartIcon());
+    fav.addEventListener('click', function () {
+      toggleSaved(b);
+      fav.setAttribute('aria-pressed', String(!!saved[b.id]));
+      if (state.view === 'saved') render();
+    });
+    w.appendChild(open);
+    w.appendChild(fav);
+    return w;
+  }
+
+  function skeletons(n) {
+    for (var i = 0; i < n; i++) {
+      var s = el('div', 'skel card');
+      s.appendChild(el('div', 'cover'));
+      s.appendChild(el('div', 'bar'));
+      s.appendChild(el('div', 'bar s'));
+      grid.appendChild(s);
+    }
+  }
+
+  function setState(title, text, onRetry) {
+    stateBox.textContent = '';
+    if (!title) return;
+    var d = el('div', 'state');
+    d.appendChild(el('b', null, title));
+    d.appendChild(document.createTextNode(text || ''));
+    if (onRetry) {
+      var rb = el('button', 'btn', 'Спробувати ще');
+      rb.type = 'button';
+      rb.addEventListener('click', onRetry);
+      d.appendChild(rb);
+    }
+    stateBox.appendChild(d);
+  }
+
+  function renderNotice() {
+    var n = $('notice');
+    var show = state.view === 'search' && state.source === 'ol';
+    n.hidden = !show;
+    n.textContent = show
+      ? 'Google Books зараз не відповів' + (state.googleErr ? ' (' + state.googleErr + ')' : '') + ', тому показую книги з Open Library. Жанри ті самі, але описів там менше.'
+      : '';
+  }
+
+  function savedList() { return Object.keys(saved).map(function (k) { return saved[k]; }); }
+
+  function renderUnderstood() {
+    var box = $('understood');
+    box.textContent = '';
+    var label = '', tags = [];
+    if (state.view === 'saved') { box.hidden = true; return; }
+    if (state.mode === 'forme') {
+      label = 'Схоже на твої збережені:';
+      tags = state.forMeNames.slice();
+    } else if (state.fromText && (state.text || state.relaxed || state.genres.length > 1)) {
+      label = state.relaxed ? 'З уточненням нічого не знайшлося, показую жанр:' : 'Я зрозуміла так:';
+      tags = state.genres.map(function (g) { return g.name; });
+      if (state.text) tags.push('«' + state.label + '»');
+    }
+    box.hidden = !tags.length;
+    if (!tags.length) return;
+    box.appendChild(el('span', null, label));
+    tags.forEach(function (t) { box.appendChild(el('span', 'tag', t)); });
+  }
+
+  function render() {
+    grid.textContent = '';
+    setState('');
+    renderUnderstood();
+    renderNotice();
+    var list = state.view === 'saved' ? savedList() : state.items;
+    if (state.view === 'saved') {
+      $('resTitle').textContent = 'Збережені книги';
+      $('resMeta').textContent = list.length ? list.length + ' шт.' : '';
+      moreBtn.hidden = true;
+      if (!list.length) setState('Поки порожньо', 'Натисни серце на обкладинці, і книга з’явиться тут.');
+    } else {
+      var title = 'Книги';
+      if (state.mode === 'forme') title = 'Підібрано для тебе';
+      else if (state.genres.length) title = state.genres.map(function (g) { return g.name; }).join(' + ');
+      else if (state.text) title = 'Результати пошуку';
+      $('resTitle').textContent = title;
+      $('resMeta').textContent = state.items.length ? 'Показано ' + state.items.length : '';
+      moreBtn.hidden = !(state.items.length && state.more && !state.loading);
+    }
+    list.forEach(function (b) { grid.appendChild(card(b)); });
+    if (state.loading) skeletons(state.items.length ? 4 : 10);
+  }
+
+  function updateSavedUi() {
+    $('savedCount').textContent = Object.keys(saved).length;
+    $('forMe').hidden = !savedList().some(function (b) { return b.cats && b.cats.length; });
+  }
+  function toggleSaved(b) {
+    if (saved[b.id]) delete saved[b.id]; else saved[b.id] = b;
+    lsSet('alina:saved', JSON.stringify(saved));
+    updateSavedUi();
+  }
+
+  /* ---------- Google Books ---------- */
+  var API = 'https://www.googleapis.com/books/v1/volumes?';
+
+  var OL_API = 'https://openlibrary.org/search.json?';
+  var OL_LANG = { uk: 'ukr', en: 'eng', pl: 'pol', de: 'ger' };
+
+  // Each query has a Google Books form (g) and an Open Library form (ol)
+  function buildQueries() {
+    if (state.mode === 'forme') {
+      return state.forMeNames.map(function (c) { return { g: 'subject:"' + c + '"', ol: 'subject:"' + c.toLowerCase() + '"' }; });
+    }
+    var t = state.text;
+    if (!state.genres.length) return t ? [{ g: t, ol: t }] : [];
+    return state.genres.map(function (g) {
+      var q = (t ? t + ' ' : '') + 'subject:"' + g.q + '"';
+      return { g: q, ol: q };
+    });
+  }
+
+  function fetchJson(url) {
+    var ctl = ('AbortController' in window) ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 10000);
+    return fetch(url, ctl ? { signal: ctl.signal } : undefined).then(
+      function (res) {
+        clearTimeout(timer);
+        if (!res.ok) { var err = new Error('http'); err.status = res.status; throw err; }
+        return res.json();
+      },
+      function (e) { clearTimeout(timer); throw e; }
+    );
+  }
+
+  function describeErr(e) {
+    if (e && e.status) return 'код ' + e.status;
+    if (e && e.name === 'AbortError') return 'немає відповіді';
+    return 'немає зв’язку';
+  }
+
+  function fetchGoogle(q, start) {
+    var params = new URLSearchParams();
+    params.set('q', q);
+    params.set('maxResults', '20');
+    params.set('startIndex', String(start));
+    params.set('orderBy', state.order);
+    params.set('printType', 'books');
+    if (state.lang) params.set('langRestrict', state.lang);
+    if (state.apiKey) params.set('key', state.apiKey);
+    return fetchJson(API + params.toString()).then(function (data) {
+      var raw = data.items || [];
+      return { items: raw.map(normalize), more: raw.length >= 15 && start < 180 };
+    });
+  }
+
+  function fetchOL(q, start) {
+    var params = new URLSearchParams();
+    var lang = OL_LANG[state.lang];
+    params.set('q', q + (lang ? ' language:' + lang : ''));
+    params.set('limit', '20');
+    params.set('page', String(start / 20 + 1));
+    params.set('fields', 'key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median,subject');
+    if (state.order === 'newest') params.set('sort', 'new');
+    return fetchJson(OL_API + params.toString()).then(function (data) {
+      var docs = data.docs || [];
+      return { items: docs.map(normalizeOL), more: docs.length >= 15 && start < 180 };
+    });
+  }
+
+  // Google Books first; if it refuses or does not answer, Open Library takes over
+  function fetchPage(qo, start) {
+    if (state.source === 'ol') return fetchOL(qo.ol, start);
+    return fetchGoogle(qo.g, start).catch(function (ge) {
+      return fetchOL(qo.ol, start).then(
+        function (r) { state.source = 'ol'; state.googleErr = describeErr(ge); return r; },
+        function (oe) {
+          var e = new Error('both');
+          e.detail = 'Google Books: ' + describeErr(ge) + ', Open Library: ' + describeErr(oe);
+          throw e;
+        }
+      );
+    });
+  }
+
+  function load(append) {
+    var qs = buildQueries();
+    if (!qs.length) {
+      state.items = []; state.more = false; state.loading = false;
+      render();
+      setState('Напиши, що хочеш почитати', 'Наприклад: «темне фентезі про драконів» або обери жанр нижче.');
+      return;
+    }
+    var token = ++state.token;
+    if (!append) { state.start = 0; state.items = []; }
+    state.loading = true;
+    moreBtn.disabled = true;
+    render();
+
+    Promise.all(qs.map(function (q) {
+      return fetchPage(q, state.start).then(
+        function (r) { return { ok: true, r: r }; },
+        function (e) { return { ok: false, e: e }; }
+      );
+    })).then(function (res) {
+      if (token !== state.token) return;
+      var good = res.filter(function (x) { return x.ok; });
+      if (!good.length) throw res[0].e;
+      var seen = {};
+      state.items.forEach(function (b) { seen[b.id] = true; });
+      var lists = good.map(function (x) { return x.r.items; });
+      var longest = Math.max.apply(null, lists.map(function (l) { return l.length; }));
+      var fresh = [];
+      for (var i = 0; i < longest; i++) {
+        lists.forEach(function (l) {
+          var b = l[i];
+          if (!b || seen[b.id]) return;
+          if (state.mode === 'forme' && saved[b.id]) return;
+          seen[b.id] = true;
+          fresh.push(b);
+        });
+      }
+      state.items = state.items.concat(fresh);
+      state.start += 20;
+      state.more = good.some(function (x) { return x.r.more; });
+      state.loading = false;
+      moreBtn.disabled = false;
+
+      // Nothing found with the extra keywords: fall back to the genre alone
+      if (!state.items.length && state.text && state.genres.length && !state.relaxedTried) {
+        state.relaxedTried = true;
+        state.relaxed = true;
+        state.text = '';
+        load(false);
+        return;
+      }
+      render();
+      if (!state.items.length) setState('Нічого не знайдено', 'Спробуй інший жанр, мову або коротший запит.');
+    }).catch(function (e) {
+      if (token !== state.token) return;
+      state.loading = false;
+      moreBtn.disabled = false;
+      render();
+      setState(
+        'Не вдалося завантажити книги',
+        'Перевір інтернет і спробуй ще раз.' + (e && e.detail ? ' (' + e.detail + ')' : ''),
+        function () { search(); }
+      );
+    });
+  }
+
+  function search() {
+    state.view = 'search';
+    state.mode = 'search';
+    state.source = null;
+    state.googleErr = '';
+    state.relaxed = false;
+    state.relaxedTried = false;
+    $('savedBtn').setAttribute('aria-pressed', 'false');
+    load(false);
+  }
+
+  function submitText(raw) {
+    raw = (raw || '').trim();
+    state.raw = raw;
+    if (!raw) {
+      state.text = ''; state.label = ''; state.fromText = false;
+      buildChips(); search();
+      return;
+    }
+    var plan = planFromText(raw, state.lang);
+    state.genres = plan.genres;
+    state.text = plan.text;
+    state.label = plan.label;
+    state.fromText = true;
+    buildChips();
+    search();
+  }
+
+  function recommend() {
+    var counts = {};
+    savedList().forEach(function (b) {
+      (b.cats || []).forEach(function (c) {
+        var parts = c.split('/').map(function (s) { return s.trim(); });
+        var name = parts[1] && !/^general$/i.test(parts[1]) ? parts[1] : parts[0];
+        if (!name || /^general$/i.test(name)) return;
+        counts[name] = (counts[name] || 0) + 1;
+      });
+    });
+    var top = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 2);
+    if (!top.length) return;
+    state.genres = []; state.text = ''; state.label = ''; state.raw = ''; state.fromText = false;
+    state.forMeNames = top;
+    state.forMeQueries = top.map(function (c) { return 'subject:"' + c + '"'; });
+    state.view = 'search';
+    state.mode = 'forme';
+    buildChips();
+    state.relaxed = false;
+    state.relaxedTried = true;
+    state.source = null;
+    state.googleErr = '';
+    $('savedBtn').setAttribute('aria-pressed', 'false');
+    load(false);
+  }
+
+  /* ---------- Sheet ---------- */
+  var sheet = $('sheet');
+  function stripHtml(html) {
+    var s = String(html).replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n');
+    var doc = new DOMParser().parseFromString(s, 'text/html');
+    return (doc.body.textContent || '').trim();
+  }
+  function link(href, text, primary) {
+    var a = el('a', 'btn' + (primary ? ' primary' : ''), text);
+    a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    return a;
+  }
+  function openSheet(id) {
+    var b = cache[id] || saved[id];
+    if (!b) return;
+    var body = $('sheetBody');
+    body.textContent = '';
+    var close = el('button', 'close');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Закрити');
+    close.innerHTML = '<svg viewBox="0 0 24 24" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>';
+    close.addEventListener('click', function () { sheet.close(); });
+    body.appendChild(close);
+    body.appendChild(coverNode(b));
+    var info = el('div');
+    info.appendChild(el('h3', null, b.title));
+    if (b.authors) info.appendChild(el('p', 'by', b.authors));
+    var tags = el('div', 'tags');
+    if (b.rating) tags.appendChild(el('span', 'tag', '★ ' + b.rating));
+    if (b.year) tags.appendChild(el('span', 'tag', b.year));
+    if (b.pages) tags.appendChild(el('span', 'tag', b.pages + ' стор.'));
+    if (b.lang) tags.appendChild(el('span', 'tag', b.lang.toUpperCase()));
+    if (b.publisher) tags.appendChild(el('span', 'tag', b.publisher));
+    info.appendChild(tags);
+    body.appendChild(info);
+    var srcName = b.src === 'ol' ? 'Open Library' : 'Google Books';
+    if (b.cats && b.cats.length && !b.desc) {
+      b.cats.slice(0, 3).forEach(function (c) { tags.appendChild(el('span', 'tag', c.split('/').pop().trim())); });
+    }
+    body.appendChild(el('p', 'desc', b.desc ? stripHtml(b.desc) : 'Опису для цієї книги в ' + srcName + ' немає. Відкрий книгу на сайті, щоб дізнатися більше.'));
+    var btns = el('div', 'btns');
+    if (b.info) btns.appendChild(link(b.info, 'Відкрити в ' + srcName, true));
+    if (b.preview) btns.appendChild(link(b.preview, 'Читати уривок', false));
+    var sv = el('button', 'btn', saved[b.id] ? 'Збережено' : 'Зберегти');
+    sv.type = 'button';
+    sv.setAttribute('aria-pressed', String(!!saved[b.id]));
+    sv.addEventListener('click', function () {
+      toggleSaved(b);
+      sv.textContent = saved[b.id] ? 'Збережено' : 'Зберегти';
+      sv.setAttribute('aria-pressed', String(!!saved[b.id]));
+      render();
+    });
+    btns.appendChild(sv);
+    body.appendChild(btns);
+    sheet.showModal();
+    body.scrollTop = 0;
+  }
+  sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.close(); });
+
+  /* ---------- Events ---------- */
+  $('searchForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    submitText($('q').value);
+    $('q').blur();
+  });
+  $('lang').addEventListener('change', function () {
+    state.lang = this.value;
+    if (state.mode === 'search' && state.raw) submitText(state.raw); else search();
+  });
+  $('order').addEventListener('change', function () { state.order = this.value; search(); });
+  moreBtn.addEventListener('click', function () { load(true); });
+  $('forMe').addEventListener('click', recommend);
+  $('keyInput').value = state.apiKey;
+  $('keyForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    state.apiKey = $('keyInput').value.trim();
+    lsSet('alina:key', state.apiKey);
+    search();
+  });
+  $('savedBtn').addEventListener('click', function () {
+    if (state.view === 'saved') { search(); return; }
+    state.view = 'saved';
+    this.setAttribute('aria-pressed', 'true');
+    render();
+  });
+
+  buildChips();
+  buildExamples();
+  updateSavedUi();
+  search();
+
+  // Test hook for planFromText (harmless in production)
+  window.__alina = { planFromText: planFromText };
+})();
+</script>
+</body>
+</html>
